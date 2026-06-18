@@ -16,6 +16,12 @@ public:
   using Result = ArgDepResult;
 
   Result run(llvm::Function &F, llvm::FunctionAnalysisManager &FAM);
+};
+
+class ArgDepPrinterPass : public llvm::PassInfoMixin<ArgDepPrinterPass> {
+public:
+  llvm::PreservedAnalyses run(llvm::Function &F,
+                              llvm::FunctionAnalysisManager &FAM);
   static bool isRequired() { return true; };
 };
 

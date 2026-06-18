@@ -15,6 +15,10 @@ PassPluginLibraryInfo getPluginInfo() {
             PB.registerPipelineParsingCallback(
                 [](StringRef Name, FunctionPassManager &FPM,
                    ArrayRef<PassBuilder::PipelineElement>) {
+                  if (Name == "print<arg-dep>") {
+                    FPM.addPass(ct::ArgDepPrinterPass());
+                    return true;
+                  }
                   if (Name == "ct-branch") {
                     FPM.addPass(ct::CTBranchPass());
                     return true;
