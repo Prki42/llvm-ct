@@ -2,11 +2,18 @@
 #define ARG_DEP_ANALYSIS_H
 
 #include "llvm/IR/Function.h"
+#include "llvm/IR/Instruction.h"
+#include "llvm/IR/Instructions.h"
 #include "llvm/IR/PassManager.h"
+
+#include <unordered_set>
 
 namespace ct {
 
-struct ArgDepResult {};
+struct ArgDepResult {
+  std::unordered_set<llvm::BranchInst *> MarkedBranches;
+  std::unordered_set<llvm::Value *> MarkedValues;
+};
 
 class ArgDepAnalysis : public llvm::AnalysisInfoMixin<ArgDepAnalysis> {
   friend llvm::AnalysisInfoMixin<ArgDepAnalysis>;
