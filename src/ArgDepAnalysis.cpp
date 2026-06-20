@@ -13,24 +13,41 @@ AnalysisKey ArgDepAnalysis::Key;
 
 ArgDepResult ArgDepAnalysis::run(Function &F, FunctionAnalysisManager &) {
   ArgDepResult res;
-  std::queue<llvm::Value *> markedValues;
+  std::queue<llvm::Value *> valueWorklist;
+
+  auto mark = [&res, &valueWorklist](Value *to_be_marked) {
+    // avoid adding already marked instructions to worklist
+    if (res.MarkedValues.insert(to_be_marked).second) {
+      valueWorklist.push(to_be_marked);
+    }
+  };
 
   for (auto &Arg : F.args()) {
     res.MarkedValues.insert(&Arg);
-    markedValues.push(&Arg);
+    valueWorklist.push(&Arg);
   }
 
-  // gathering all vulnerable values!
-  while (!markedValues.empty()) {
-    auto currValue = markedValues.front();
-    markedValues.pop();
+  // gathering all vulnerable values
+  while (!valueWorklist.empty()) {
+    auto currValue = valueWorklist.front();
+    valueWorklist.pop();
 
     for (auto *User : currValue->users()) {
-      auto *I = llvm::dyn_cast<llvm::Instruction>(User);
-      if (I) {
-        if (res.MarkedValues.insert(I).second) {
-          markedValues.push(I);
+      if (auto *I = llvm::dyn_cast<llvm::Instruction>(User)) {
+
+        // handle store separately
+        if (auto *store_inst = llvm::dyn_cast<llvm::StoreInst>(I)) {
+          auto *val_op = store_inst->getValueOperand();
+          // if value operand is marked, mark the ptr operand
+          if (res.MarkedValues.count(val_op)) {
+            auto ptr_op = store_inst->getPointerOperand();
+            mark(ptr_op);
+          }
+          continue;
         }
+
+        // all other instructions
+        mark(I);
       }
     }
   }
@@ -44,6 +61,7 @@ ArgDepResult ArgDepAnalysis::run(Function &F, FunctionAnalysisManager &) {
       }
     }
   }
+
   return res;
 }
 
@@ -63,8 +81,7 @@ PreservedAnalyses ArgDepPrinterPass::run(llvm::Function &F,
   }
 
   // We write out all the values which are marked
-  llvm::errs() << "Number of values: " << Res.MarkedValues.size()
-               << "\n";
+  llvm::errs() << "Number of values: " << Res.MarkedValues.size() << "\n";
   // As well as all the instructions that contain the marked values
   for (auto *V : Res.MarkedValues) {
     if (auto *I = llvm::dyn_cast<llvm::Instruction>(V)) {

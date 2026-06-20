@@ -2,6 +2,8 @@
 
 ; CHECK: ArgDepAnalysis visiting: temp
 ; CHECK: ArgDepPrinterPass visiting: temp
+;
+; NOTE - PLACEHOLDER, SHOULD FAIL
 
 define i32 @temp(i32 %x) {
   %cmp = icmp sgt i32 %x, 0
