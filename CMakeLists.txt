@@ -9,6 +9,7 @@ message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
 separate_arguments(LLVM_DEFINITIONS_LIST NATIVE_COMMAND ${LLVM_DEFINITIONS})
 
 add_library(CTPass MODULE
+  src/Debug.cpp
   src/ArgDepAnalysis.cpp
   src/CTBranchPass.cpp
   src/Plugin.cpp
