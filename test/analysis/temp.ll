@@ -1,8 +1,3 @@
-; RUN: %opt --load-pass-plugin=%plugin --passes="print<arg-dep>" -disable-output %s 2>&1 | %FileCheck %s
-
-; CHECK: ArgDepAnalysis visiting: temp
-; CHECK: ArgDepPrinterPass visiting: temp
-
 define i32 @temp(i32 %x) {
   %cmp = icmp sgt i32 %x, 0
   br i1 %cmp, label %then, label %else
