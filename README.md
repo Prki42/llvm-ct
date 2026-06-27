@@ -1,21 +1,14 @@
 # KK
 
-## Dependencies
+## Setup
 
-**Fedora:**
+The project provides a [Nix flake](https://nix.dev/concepts/flakes) with a dev shell that includes all dependencies:
+
 ```sh
-dnf install llvm llvm-devel clang cmake
+nix develop
 ```
 
-**Arch:**
-```sh
-pacman -S llvm clang cmake
-```
-
-**Ubuntu/Debian:**
-```sh
-apt install llvm-dev clang cmake
-```
+Alternatively, install LLVM 22 (including development headers), Clang, CMake, and [lit](https://github.com/llvm/llvm-project/tree/llvmorg-22.1.7/llvm/utils/lit) using your package manager.
 
 ## Building
 
@@ -49,11 +42,7 @@ cmake -S . -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
 
 ### Testing
 
-Project utilizes LLVM's `lit` and `FileCheck` tools for testing.
-
-`FileCheck` is usually included in some `llvm` package but `lit` should be installed from [LLVM repo](https://github.com/llvm/llvm-project/tree/llvmorg-22.1.7/llvm/utils/lit).
-
-To run the test use:
+Project utilizes LLVM's `lit` and `FileCheck` tools for testing. To run the test use:
 ```sh
 # run all tests
 lit test/ -v
