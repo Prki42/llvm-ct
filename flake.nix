@@ -51,6 +51,10 @@
               pkgs.cmake
               lit
             ];
+            shellHook = ''
+              export SHELL=$(getent passwd $USER | cut -d: -f7)
+              exec $SHELL
+            '';
 
             /*
               nix clang wrapper injects -isystem for llvm includes at
