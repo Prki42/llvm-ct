@@ -112,6 +112,35 @@ static void convertIPDOMPhis(BasicBlock *IPDOM, BasicBlock *TrueValBlock,
   }
 }
 
+// For every store in the given blocks, replace:
+//   store val, ptr
+// with:
+//   existing = load T, ptr
+//   sel      = select(Cond, val, existing)   [if CondIsTrue]
+//            = select(Cond, existing, val)   [if !CondIsTrue]
+//   store sel, ptr
+//
+// This makes stores inside a linearized branch semantically conditional:
+// the write is a no-op on the path that the original branch would not take.
+static void guardStores(const SmallPtrSetImpl<BasicBlock *> &Blocks,
+                        Value *Cond, bool CondIsTrue) {
+  SmallVector<StoreInst *, 16> Stores;
+  for (auto *BB : Blocks)
+    for (auto &I : *BB)
+      if (auto *SI = dyn_cast<StoreInst>(&I))
+        Stores.push_back(SI);
+
+  for (auto *SI : Stores) {
+    IRBuilder<> B(SI);
+    Value *Val = SI->getValueOperand();
+    Value *Ptr = SI->getPointerOperand();
+    Value *Existing = B.CreateLoad(Val->getType(), Ptr);
+    Value *Sel = CondIsTrue ? B.CreateSelect(Cond, Val, Existing)
+                            : B.CreateSelect(Cond, Existing, Val);
+    SI->setOperand(0, Sel);
+  }
+}
+
 static bool tryLinearize(BranchInst *BI, PostDominatorTree &PDT,
                          DominatorTree &DT, LoopInfo &LI, RegionInfo &RI) {
   BasicBlock *EntryBB = BI->getParent();
@@ -224,6 +253,12 @@ static bool tryLinearize(BranchInst *BI, PostDominatorTree &PDT,
   }
 
   convertIPDOMPhis(IPDOM, TrueValBlock, FalseValBlock, RemovedBlock, Cond);
+
+  // Guard stores inside linearized blocks so memory writes remain conditional.
+  // Stores in TrueReachable only take effect when Cond==true;
+  // stores in FalseReachable only take effect when Cond==false.
+  guardStores(TrueReachable, Cond, /*CondIsTrue=*/true);
+  guardStores(FalseReachable, Cond, /*CondIsTrue=*/false);
 
   // Rewire branches
   //   entry -> else side -> then side -> IPDOM
