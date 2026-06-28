@@ -1,5 +1,7 @@
 #include "ArgDepAnalysis.h"
 #include "CTBranchPass.h"
+#include "CTDataPass.h"
+#include "DataAnalysis.h"
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Plugins/PassPlugin.h"
 
@@ -11,6 +13,7 @@ PassPluginLibraryInfo getPluginInfo() {
             PB.registerAnalysisRegistrationCallback(
                 [](FunctionAnalysisManager &FAM) {
                   FAM.registerPass([]() { return ct::ArgDepAnalysis(); });
+                  FAM.registerPass([]() { return ct::DataAnalysis(); });
                 });
             PB.registerPipelineParsingCallback(
                 [](StringRef Name, FunctionPassManager &FPM,
@@ -21,6 +24,14 @@ PassPluginLibraryInfo getPluginInfo() {
                   }
                   if (Name == "ct-branch") {
                     FPM.addPass(ct::CTBranchPass());
+                    return true;
+                  }
+                  if (Name == "print<data>") {
+                    FPM.addPass(ct::DataPrinterPass());
+                    return true;
+                  }
+                  if (Name == "ct-data") {
+                    FPM.addPass(ct::CTDataPass());
                     return true;
                   }
                   return false;

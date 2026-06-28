@@ -12,6 +12,8 @@ add_library(CTPass MODULE
   src/Debug.cpp
   src/ArgDepAnalysis.cpp
   src/CTBranchPass.cpp
+  src/CTDataPass.cpp
+  src/DataAnalysis.cpp
   src/Plugin.cpp
 )
 
