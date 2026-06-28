@@ -50,6 +50,9 @@
               llvmPkgs.llvm
               pkgs.cmake
               lit
+
+              # for dot
+              pkgs.graphviz
             ];
             shellHook = ''
               export SHELL=$(getent passwd $USER | cut -d: -f7)
