@@ -34,15 +34,49 @@ Add `-DCMAKE_EXPORT_COMPILE_COMMANDS=ON` to `cmake` configuration command to gen
 cmake -S . -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
 ```
 
+### Debug builds
+
+We use `LLVM_DEBUG()` for debug logs but since packaged `opt` is compiled in Release mode, we redefine `LLVM_DEBUG()` when CTPass.so is compiled in Debug mode. To build Debug version:
+
+```sh
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+```
+
+Then to enable debug logs pass `--ct-verbose` to `opt` (simulates `opt`'s `--debug-only` flag)
+
+### Generating examples from c files
+
+```sh
+clang -S -emit-llvm -fno-discard-value-names -O0 <input.c> -o <out.ll>
+opt -passes=sroa,mem2reg -S <in.ll> -o <out.ll>
+```
+
+To visualize CFG of a function in a given `.ll` file:
+```sh
+# opens in default image viewer
+./scripts/cfg-image.sh <in.ll>
+
+# saves as png/svg file
+./scripts/cfg-image.sh -f <png/svg> -o <image.png/svg> <in.ll>
+```
+
+### Running branch linearization
+
+```sh
+opt --load-pass-plugin=build/CTPass.so --ct-verbose --passes="mergereturn,structurizecfg,ct-branch,simplifycfg" --verify-each -S <in.ll> -o <out.ll>
+```
+
+`simplifycfg` at the end is not required but since `ct-branch` transformation can produce a lot of unconditional jumps it makes output nicer.
+
 ### Project structure
 
-- `include/ArgDepAnalysis.h` - analysis pass
-- `include/CTBranchPass.h` - transformation pass
+- `src/ArgDepAnalysis.cpp` - argument dependance analysis pass
+- `src/CTBranchPass.cpp` - if/else linearization pass
 - `src/Plugin.cpp` - pass registration and plugin entry point
 
 ### Testing
 
-Project utilizes LLVM's `lit` and `FileCheck` tools for testing. To run the test use:
+Project utilizes LLVM's `lit` and `FileCheck` tools for some tests. To run those tests use:
 ```sh
 # run all tests
 lit test/ -v
@@ -60,3 +94,6 @@ lit test/.../test_file.ll -v
   - [lit - LLVM Integrated Tester](https://llvm.org/docs/CommandGuide/lit.html)
   - [FileCheck - Flexible pattern matching file verifier](https://llvm.org/docs/CommandGuide/FileCheck.html)
 - [LLVM repo](https://github.com/llvm/llvm-project)
+  - [Regions](https://github.com/llvm/llvm-project/blob/8cdf6346f46c505928a9fb9d3ef9e8ce125a2108/llvm/include/llvm/Analysis/RegionInfo.h#L189)
+  - [Structurize CFG](https://github.com/llvm/llvm-project/blob/8cdf6346f46c505928a9fb9d3ef9e8ce125a2108/llvm/lib/Transforms/Scalar/StructurizeCFG.cpp#L230)
+  - [STL extras](https://github.com/llvm/llvm-project/blob/3a1eaf167e1dd9fb518a1a2d4a3838d159ea8f9f/llvm/include/llvm/ADT/STLExtras.h)
