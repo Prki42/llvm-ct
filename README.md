@@ -21,7 +21,7 @@ cmake --build build
 
 ```sh
 clang -S -emit-llvm <input.c> -o <input.ll>
-opt --load-pass-plugin=build/CTPass.so --passes="ct-branch" -disable-output <input.ll>
+opt --load-pass-plugin=build/CTPass.so --passes="mergereturn,structurizecfg,ct-branch,ct-data,simplifycfg" -S <in.ll> -o <out.ll>
 ```
 
 ## Development
@@ -60,10 +60,10 @@ To visualize CFG of a function in a given `.ll` file:
 ./scripts/cfg-image.sh -f <png/svg> -o <image.png/svg> <in.ll>
 ```
 
-### Running branch linearization
+### Running passes in debug mode
 
 ```sh
-opt --load-pass-plugin=build/CTPass.so --ct-verbose --passes="mergereturn,structurizecfg,ct-branch,simplifycfg" --verify-each -S <in.ll> -o <out.ll>
+opt --load-pass-plugin=build/CTPass.so --ct-verbose --passes="mergereturn,structurizecfg,ct-branch,ct-data,simplifycfg" --verify-each -S <in.ll>
 ```
 
 `simplifycfg` at the end is not required but since `ct-branch` transformation can produce a lot of unconditional jumps it makes output nicer.

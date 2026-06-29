@@ -116,7 +116,7 @@ PreservedAnalyses DataPrinterPass::run(Function &F,
            << "    form:     " << *Obj->Form << "\n"
            << "    size:     " << Obj->Size << " bytes\n"
            << "    interval: [" << Obj->OffsetLow << ", " << Obj->OffsetHigh
-           << "]\n";
+           << ")\n";
   }
 
   return PreservedAnalyses::all();

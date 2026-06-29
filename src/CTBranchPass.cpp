@@ -172,8 +172,7 @@ static bool tryLinearize(BranchInst *BI, PostDominatorTree &PDT,
   // However, resulting assumptions should be challenged with assertions
   // for testing purposes
   Region *R = RI.getRegionFor(EntryBB);
-  LLVM_DEBUG(dbgs() << *EntryBB << "\n");
-  assert(R && "Not a region?");
+  assert(R && "EntryBB not in any region");
 
   if (R->getEntry() != EntryBB || R->getExit() != IPDOM) {
     LLVM_DEBUG(dbgs() << "  Skipping (not SESE)\n");
@@ -186,6 +185,17 @@ static bool tryLinearize(BranchInst *BI, PostDominatorTree &PDT,
   bool ElseEmpty = (ElseBB == IPDOM);
   if (ThenEmpty && ElseEmpty)
     return false;
+
+  // In case both then and else are != IPDOM rewiring will
+  // change predecessor of one of them and possibly invalidate
+  // some phi instruction.
+  // (structurizecfg should make this impossible)
+  if (!ThenEmpty)
+    assert(ThenBB->phis().empty() &&
+           "nonempty then branch has phi instructions");
+  if (!ElseEmpty)
+    assert(ElseBB->phis().empty() &&
+           "nonempty else branch has phi instructions");
 
   SmallPtrSet<BasicBlock *, 16> TrueReachable, FalseReachable;
   collectReachable(ThenBB, IPDOM, TrueReachable);
