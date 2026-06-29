@@ -1,4 +1,4 @@
-; RUN: %opt --load-pass-plugin=%plugin --passes="print<arg-dep>" -disable-output %s 2>&1 | %FileCheck %s
+; RUN: opt --load-pass-plugin=%plugin --passes="print<arg-dep>" -disable-output %s 2>&1 | FileCheck %s
 
 ; CHECK: ArgDep for f
 ; 

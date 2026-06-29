@@ -53,6 +53,9 @@
 
               # for dot
               pkgs.graphviz
+
+              pkgs.shellcheck
+              pkgs.shfmt
             ];
             shellHook = ''
               export SHELL=$(getent passwd $USER | cut -d: -f7)

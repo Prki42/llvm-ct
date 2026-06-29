@@ -1,4 +1,4 @@
-; RUN: %opt --load-pass-plugin=%plugin --passes="print<data>" -disable-output %s 2>&1 | %FileCheck %s
+; RUN: opt --load-pass-plugin=%plugin --passes="print<data>" -disable-output %s 2>&1 | FileCheck %s
 
 ; typedef struct { int x; int y; } Point;
 ;

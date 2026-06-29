@@ -1,4 +1,4 @@
-; RUN: %opt --load-pass-plugin=%plugin --passes="print<data>" -disable-output %s 2>&1 | %FileCheck %s
+; RUN: opt --load-pass-plugin=%plugin --passes="print<data>" -disable-output %s 2>&1 | FileCheck %s
 
 ; // secret stored into a local, then loaded back - both ops are sensitive
 ; int simple(int secret) {
