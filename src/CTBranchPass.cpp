@@ -37,12 +37,6 @@ static void collectReachable(BasicBlock *Start, BasicBlock *Boundary,
   }
 }
 
-static bool containsLoop(const SmallPtrSetImpl<BasicBlock *> &Blocks,
-                         LoopInfo &LI) {
-  return llvm::any_of(Blocks,
-                      [&](BasicBlock *BB) { return LI.getLoopFor(BB); });
-}
-
 static bool hasSharedBlocks(const SmallPtrSetImpl<BasicBlock *> &A,
                             const SmallPtrSetImpl<BasicBlock *> &B) {
   for (auto *BB : A)
@@ -73,6 +67,40 @@ static bool containsCall(const SmallPtrSetImpl<BasicBlock *> &Blocks) {
       if (isa<CallInst>(&I))
         return true;
   return false;
+}
+
+static void pullDownCondToLoops(SmallPtrSetImpl<BasicBlock *> &Blocks,
+                                LoopInfo &LI, Value *Cond) {
+  for (auto *BB : Blocks) {
+    auto *L = LI.getLoopFor(BB);
+    if (!L || !L->isLoopExiting(BB))
+      continue;
+
+    auto *BI = dyn_cast<BranchInst>(BB->getTerminator());
+    if (!BI || !BI->isConditional())
+      continue;
+
+    // Figure out which successor stays in the loop
+    BasicBlock *ExitSucc = nullptr;
+    for (unsigned i = 0; i < 2; i++) {
+      if (!L->contains(BI->getSuccessor(i))) {
+        ExitSucc = BI->getSuccessor(i);
+        break;
+      }
+    }
+    if (!ExitSucc)
+      continue;
+
+    IRBuilder<> B(BI);
+    if (BI->getSuccessor(0) == ExitSucc) {
+      // true -> exit: OR with !Cond to force exit
+      Value *NotCond = B.CreateNot(Cond);
+      BI->setCondition(B.CreateOr(BI->getCondition(), NotCond));
+    } else {
+      // false -> exit: AND with Cond to force exit
+      BI->setCondition(B.CreateAnd(BI->getCondition(), Cond));
+    }
+  }
 }
 
 static void convertIPDOMPhis(BasicBlock *IPDOM, BasicBlock *TrueValBlock,
@@ -204,17 +232,18 @@ static bool tryLinearize(BranchInst *BI, PostDominatorTree &PDT,
   assert(!hasSharedBlocks(TrueReachable, FalseReachable) &&
          "should be ran with structurizecfg which splits shared blocks");
 
+  if (containsCall(TrueReachable) || containsCall(FalseReachable))
+    return false;
+
   // Linearizing branches that contain loops can change semantics of the inner
   // loop. (if exit condition is connected to the if condition)
   //
-  // Instead of skiping, we could also pull down the if condition to the loop
+  // Instead of skiping, we pull down the if condition to the loop
   // and still have correct semantics.
-  //
-  // TODO consider doing that
-  if (containsLoop(TrueReachable, LI) || containsLoop(FalseReachable, LI))
-    return false;
-  if (containsCall(TrueReachable) || containsCall(FalseReachable))
-    return false;
+  IRBuilder<> B(BI);
+  auto *NotCond = B.CreateNot(Cond);
+  pullDownCondToLoops(TrueReachable, LI, Cond);
+  pullDownCondToLoops(FalseReachable, LI, NotCond);
 
   BasicBlock *TrueExitBB =
       ThenEmpty ? nullptr : findSingleExitBlock(TrueReachable, IPDOM);
@@ -267,8 +296,8 @@ static bool tryLinearize(BranchInst *BI, PostDominatorTree &PDT,
   // Guard stores inside linearized blocks so memory writes remain conditional.
   // Stores in TrueReachable only take effect when Cond==true;
   // stores in FalseReachable only take effect when Cond==false.
-  guardStores(TrueReachable, Cond, /*CondIsTrue=*/true);
-  guardStores(FalseReachable, Cond, /*CondIsTrue=*/false);
+  guardStores(TrueReachable, Cond, true);
+  guardStores(FalseReachable, Cond, false);
 
   // Rewire branches
   //   entry -> else side -> then side -> IPDOM

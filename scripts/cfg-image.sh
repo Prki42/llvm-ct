@@ -11,6 +11,7 @@ Generate a CFG image from an LLVM IR file.
 Options:
   -o <path>     Save image to <path> instead of opening in viewer
   -f <format>   Output format: svg (default) or png
+  -p            Run ct-branch pipeline before generating CFG
   -h            Show this help message
 EOF
 	exit "${1:-0}"
@@ -18,11 +19,13 @@ EOF
 
 FORMAT=svg
 OUTPUT=""
+RUN_PASS=false
 
-while getopts "o:f:h" opt; do
+while getopts "o:f:ph" opt; do
 	case "$opt" in
 	o) OUTPUT="$OPTARG" ;;
 	f) FORMAT="$OPTARG" ;;
+	p) RUN_PASS=true ;;
 	h) usage 0 ;;
 	*) usage 1 ;;
 	esac
@@ -46,8 +49,21 @@ if [[ "$FORMAT" != "svg" && "$FORMAT" != "png" ]]; then
 	exit 1
 fi
 
+PLUGIN="build/CTPass.so"
+if [[ "$RUN_PASS" == true && ! -f "$PLUGIN" ]]; then
+	echo "Error: $PLUGIN not found, run cmake --build build first" >&2
+	exit 1
+fi
+
 TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TMPDIR"' EXIT
+
+if [[ "$RUN_PASS" == true ]]; then
+	opt --load-pass-plugin="$PLUGIN" \
+		--passes=mergereturn,structurizecfg,ct-branch,simplifycfg \
+		-S "$INPUT" -o "$TMPDIR/transformed.ll"
+	INPUT="$TMPDIR/transformed.ll"
+fi
 
 opt --passes=dot-cfg -disable-output "$INPUT" 2>/dev/null
 mv .*.dot "$TMPDIR/" 2>/dev/null
