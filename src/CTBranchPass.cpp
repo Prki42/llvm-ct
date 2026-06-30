@@ -1,3 +1,4 @@
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/PostDominators.h"
 #include "llvm/Analysis/RegionInfo.h"
@@ -51,8 +52,7 @@ static BasicBlock *findSingleExitBlock(const SmallPtrSetImpl<BasicBlock *> &Set,
   for (auto *BB : Set) {
     for (auto *Succ : successors(BB)) {
       if (Succ == IPDOM) {
-        if (Exit && Exit != BB)
-          llvm_unreachable("Multiple exit blocks");
+        assert(!Exit || Exit == BB && "Multiple exit blocks");
         Exit = BB;
         break;
       }
@@ -120,6 +120,8 @@ static void convertIPDOMPhis(BasicBlock *IPDOM, BasicBlock *TrueValBlock,
     // Only process phis that have incoming from both blocks
     int TrueIdx = Phi.getBasicBlockIndex(TrueValBlock);
     int FalseIdx = Phi.getBasicBlockIndex(FalseValBlock);
+
+    // Phi node must reference every predecessor
     if (TrueIdx < 0 || FalseIdx < 0)
       llvm_unreachable("IPDOM phi missing expected incoming blocks");
 
@@ -152,25 +154,22 @@ static void convertIPDOMPhis(BasicBlock *IPDOM, BasicBlock *TrueValBlock,
 // the write is a no-op on the path that the original branch would not take.
 static void guardStores(const SmallPtrSetImpl<BasicBlock *> &Blocks,
                         Value *Cond, bool CondIsTrue) {
-  SmallVector<StoreInst *, 16> Stores;
   for (auto *BB : Blocks)
-    for (auto &I : *BB)
-      if (auto *SI = dyn_cast<StoreInst>(&I))
-        Stores.push_back(SI);
-
-  for (auto *SI : Stores) {
-    IRBuilder<> B(SI);
-    Value *Val = SI->getValueOperand();
-    Value *Ptr = SI->getPointerOperand();
-    Value *Existing = B.CreateLoad(Val->getType(), Ptr);
-    Value *Sel = CondIsTrue ? B.CreateSelect(Cond, Val, Existing)
-                            : B.CreateSelect(Cond, Existing, Val);
-    SI->setOperand(0, Sel);
-  }
+    for (auto &I : make_early_inc_range(*BB)) {
+      if (auto *SI = dyn_cast<StoreInst>(&I)) {
+        IRBuilder<> B(SI);
+        Value *Val = SI->getValueOperand();
+        Value *Ptr = SI->getPointerOperand();
+        Value *Existing = B.CreateLoad(Val->getType(), Ptr);
+        Value *Sel = CondIsTrue ? B.CreateSelect(Cond, Val, Existing)
+                                : B.CreateSelect(Cond, Existing, Val);
+        SI->setOperand(0, Sel);
+      }
+    }
 }
 
 static bool tryLinearize(BranchInst *BI, PostDominatorTree &PDT,
-                         DominatorTree &DT, LoopInfo &LI, RegionInfo &RI) {
+                         DominatorTree &DT, LoopInfo &LI) {
   BasicBlock *EntryBB = BI->getParent();
   Value *Cond = BI->getCondition();
   BasicBlock *ThenBB = BI->getSuccessor(0);
@@ -193,21 +192,6 @@ static bool tryLinearize(BranchInst *BI, PostDominatorTree &PDT,
   if (!Node || !Node->getIDom())
     return false;
   BasicBlock *IPDOM = Node->getIDom()->getBlock();
-
-  // Get region information for the EntryBB
-  // We assume the pass has been called after 'structurizecfg'
-  //
-  // However, resulting assumptions should be challenged with assertions
-  // for testing purposes
-  Region *R = RI.getRegionFor(EntryBB);
-  assert(R && "EntryBB not in any region");
-
-  if (R->getEntry() != EntryBB || R->getExit() != IPDOM) {
-    LLVM_DEBUG(dbgs() << "  Skipping (not SESE)\n");
-    return false;
-  }
-
-  // TODO maybe add additional assertions that check for outside branches
 
   bool ThenEmpty = (ThenBB == IPDOM);
   bool ElseEmpty = (ElseBB == IPDOM);
@@ -232,8 +216,10 @@ static bool tryLinearize(BranchInst *BI, PostDominatorTree &PDT,
   assert(!hasSharedBlocks(TrueReachable, FalseReachable) &&
          "should be ran with structurizecfg which splits shared blocks");
 
-  if (containsCall(TrueReachable) || containsCall(FalseReachable))
+  if (containsCall(TrueReachable) || containsCall(FalseReachable)) {
+    LLVM_DEBUG(dbgs() << "Skipping (contains calls)\n");
     return false;
+  }
 
   // Linearizing branches that contain loops can change semantics of the inner
   // loop. (if exit condition is connected to the if condition)
@@ -343,11 +329,10 @@ PreservedAnalyses CTBranchPass::run(Function &F, FunctionAnalysisManager &FAM) {
     auto &PDT = FAM.getResult<PostDominatorTreeAnalysis>(F);
     auto &DT = FAM.getResult<DominatorTreeAnalysis>(F);
     auto &LI = FAM.getResult<LoopAnalysis>(F);
-    auto &RI = FAM.getResult<RegionInfoAnalysis>(F);
 
     bool Found = false;
     for (auto *BI : Dep.MarkedBranches) {
-      if (tryLinearize(BI, PDT, DT, LI, RI)) {
+      if (tryLinearize(BI, PDT, DT, LI)) {
         Found = true;
         break;
       }
