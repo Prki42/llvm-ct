@@ -86,13 +86,15 @@ lit test/analysis -v
 lit test/.../test_file.ll -v
 ```
 
-### Useful resources
+### Resources
 
 - LLVM User Guides:
   - [Writing an LLVM Pass](https://llvm.org/docs/WritingAnLLVMNewPMPass.html)
   - [Building LLVM with CMake](https://llvm.org/docs/CMake.html)
   - [lit - LLVM Integrated Tester](https://llvm.org/docs/CommandGuide/lit.html)
   - [FileCheck - Flexible pattern matching file verifier](https://llvm.org/docs/CommandGuide/FileCheck.html)
+- Papers:
+  - [Constantine](https://arxiv.org/abs/2104.10749)
 - [LLVM repo](https://github.com/llvm/llvm-project)
   - [Regions](https://github.com/llvm/llvm-project/blob/8cdf6346f46c505928a9fb9d3ef9e8ce125a2108/llvm/include/llvm/Analysis/RegionInfo.h#L189)
   - [Structurize CFG](https://github.com/llvm/llvm-project/blob/8cdf6346f46c505928a9fb9d3ef9e8ce125a2108/llvm/lib/Transforms/Scalar/StructurizeCFG.cpp#L230)
